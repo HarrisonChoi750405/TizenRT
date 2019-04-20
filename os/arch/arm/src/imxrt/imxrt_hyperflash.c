@@ -527,10 +527,10 @@ ssize_t up_progmem_getpage(size_t addr)
 
 size_t up_progmem_getaddress(size_t page)
 {
-	char tempLog[128];
+	//char tempLog[128];
 
-	snprintf(tempLog, sizeof(tempLog), " up_progmem_getaddress called: page[%d] size_t[%d]", page, sizeof(size_t));
-    IMXLOG(tempLog);
+	//snprintf(tempLog, sizeof(tempLog), " up_progmem_getaddress called: page[%d] size_t[%d]", page, sizeof(size_t));
+    //IMXLOG(tempLog);
 
 	if (page >= (IMXRT_FLASH_TOTAL_SIZE/IMXRT_FLASH_PAGE_SIZE)) {
 		return SIZE_MAX;
@@ -568,10 +568,10 @@ ssize_t up_progmem_erasepage(size_t page)
     flexspi_transfer_t flashXfer;
 	uint32_t address;
 
-	char tempLog[128];
+	//char tempLog[128];
 
-	snprintf(tempLog, sizeof(tempLog), " up_progmem_erasepage called: page[%d] ", page);
-    IMXLOG(tempLog);
+	//snprintf(tempLog, sizeof(tempLog), " up_progmem_erasepage called: page[%d] ", page);
+    //IMXLOG(tempLog);
 
 	address = up_progmem_getaddress(page);
 
@@ -629,10 +629,10 @@ ssize_t up_progmem_write(size_t addr, const void *buf, size_t count)
 	flexspi_transfer_t flashXfer;
     status_t status;
 
-	char tempLog[128];
+	//char tempLog[128];
 
-	snprintf(tempLog, sizeof(tempLog), " up_progmem_write called :addr[%d]", addr);
-    IMXLOG(tempLog);
+	//snprintf(tempLog, sizeof(tempLog), " up_progmem_write called :addr[%d]", addr);
+    //IMXLOG(tempLog);
 
     flashXfer.deviceAddress = addr * 2;
     flashXfer.port = kFLEXSPI_PortA1;

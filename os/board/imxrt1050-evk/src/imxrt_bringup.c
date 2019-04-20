@@ -387,7 +387,6 @@ int imxrt_bringup(void)
 	 * at least enough succeeded to bring-up NSH with perhaps reduced
 	 * capabilities.
 	 */
-
 	imxrt_filesystem_initialize();
 
 #ifdef CONFIG_FS_PROCFS

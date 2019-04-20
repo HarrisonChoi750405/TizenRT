@@ -69,6 +69,8 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
+#define SKIP_SYSCLK_INIT
+
 /* USB PHY condfiguration */
 #define BOARD_USB_PHY_D_CAL (0x0CU)
 #define BOARD_USB_PHY_TXCAL45DP (0x06U)
