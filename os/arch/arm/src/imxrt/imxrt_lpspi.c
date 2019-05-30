@@ -958,7 +958,7 @@ void imxrt_lpspi2select(FAR struct spi_dev_s *dev, enum spi_dev_e devid, bool se
 {
 	spiinfo("devid: %d CS: %s\n", (int)devid, selected ? "assert" : "de-assert");
 
-	imxrt_gpio_write(GPIO_LPSPI2_CS, !selected);
+	imxrt_gpio_write(GPIO_LPSPI2_PCS0_2, !selected);
 }
 
 /************************************************************************************
@@ -1023,7 +1023,7 @@ void imxrt_lpspi3select(FAR struct spi_dev_s *dev, enum spi_dev_e devid, bool se
 {
 	spiinfo("devid: %d CS: %s\n", (int)devid, selected ? "assert" : "de-assert");
 
-	imxrt_gpio_write(GPIO_LPSPI3_CS, !selected);
+	imxrt_gpio_write(GPIO_LPSPI3_PCS0_1, !selected);
 }
 
 /************************************************************************************
@@ -1088,7 +1088,7 @@ void imxrt_lpspi4select(FAR struct spi_dev_s *dev, enum spi_dev_e devid, bool se
 {
 	spiinfo("devid: %d CS: %s\n", (int)devid, selected ? "assert" : "de-assert");
 
-	imxrt_gpio_write(GPIO_LPSPI4_CS, !selected);
+	imxrt_gpio_write(GPIO_LPSPI4_PCS0_1, !selected);
 }
 
 /************************************************************************************
@@ -1783,13 +1783,13 @@ FAR struct spi_dev_s *imxrt_lpspibus_initialize(int bus)
 		if ((imxrt_lpspi_getreg32(priv, IMXRT_LPSPI_CR_OFFSET) & LPSPI_CR_MEN(1U)) == 0) {
 			/* Configure SPI1 pins: SCK, MISO, and MOSI */
 
-			(void)imxrt_config_gpio(GPIO_LPSPI4_SCK_1);
-			(void)imxrt_config_gpio(GPIO_LPSPI4_SDI_1);
-			(void)imxrt_config_gpio(GPIO_LPSPI4_SDO_1);
+			(void)imxrt_config_gpio(GPIO_LPSPI1_SCK_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI1_SDI_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI1_SDO_2);
 
-			putreg32(0x1, IMXRT_INPUT_LPSPI4_SCK);
-			putreg32(0x1, IMXRT_INPUT_LPSPI4_SDI);
-			putreg32(0x1, IMXRT_INPUT_LPSPI4_SDO);
+			putreg32(0x1, IMXRT_INPUT_LPSPI1_SCK);
+			putreg32(0x1, IMXRT_INPUT_LPSPI1_SDI);
+			putreg32(0x1, IMXRT_INPUT_LPSPI1_SDO);
 
 			/* Set up default configuration: Master, 8-bit, etc. */
 
@@ -1808,9 +1808,9 @@ FAR struct spi_dev_s *imxrt_lpspibus_initialize(int bus)
 		if ((imxrt_lpspi_getreg32(priv, IMXRT_LPSPI_CR_OFFSET) & LPSPI_CR_MEN(1U)) == 0) {
 			/* Configure SPI2 pins: SCK, MISO, and MOSI */
 
-			(void)imxrt_config_gpio(GPIO_LPSPI2_SCK_1);
-			(void)imxrt_config_gpio(GPIO_LPSPI2_SDI_1);
-			(void)imxrt_config_gpio(GPIO_LPSPI2_SDO_1);
+			(void)imxrt_config_gpio(GPIO_LPSPI2_SCK_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI2_SDI_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI2_SDO_2);
 
 			/* Set up default configuration: Master, 8-bit, etc. */
 
@@ -1901,13 +1901,14 @@ FAR struct spi_dev_s *up_spiinitialize(int port)
 		if ((imxrt_lpspi_getreg32(priv, IMXRT_LPSPI_CR_OFFSET) & LPSPI_CR_MEN(1U)) == 0) {
 			/* Configure SPI1 pins: SCK, MISO, and MOSI */
 
-			(void)imxrt_config_gpio(GPIO_LPSPI4_SCK_1);
-			(void)imxrt_config_gpio(GPIO_LPSPI4_SDI_1);
-			(void)imxrt_config_gpio(GPIO_LPSPI4_SDO_1);
+			//(void)imxrt_config_gpio(GPIO_LPSPI1_PCS0_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI1_SCK_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI1_SDI_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI2_SDO_2);
 
-			putreg32(0x1, IMXRT_INPUT_LPSPI4_SCK);
-			putreg32(0x1, IMXRT_INPUT_LPSPI4_SDI);
-			putreg32(0x1, IMXRT_INPUT_LPSPI4_SDO);
+			putreg32(0x1, IMXRT_INPUT_LPSPI1_SCK);
+			putreg32(0x1, IMXRT_INPUT_LPSPI1_SDI);
+			putreg32(0x1, IMXRT_INPUT_LPSPI1_SDO);
 
 			/* Set up default configuration: Master, 8-bit, etc. */
 
@@ -1926,9 +1927,9 @@ FAR struct spi_dev_s *up_spiinitialize(int port)
 		if ((imxrt_lpspi_getreg32(priv, IMXRT_LPSPI_CR_OFFSET) & LPSPI_CR_MEN(1U)) == 0) {
 			/* Configure SPI2 pins: SCK, MISO, and MOSI */
 
-			(void)imxrt_config_gpio(GPIO_LPSPI2_SCK_1);
-			(void)imxrt_config_gpio(GPIO_LPSPI2_SDI_1);
-			(void)imxrt_config_gpio(GPIO_LPSPI2_SDO_1);
+			(void)imxrt_config_gpio(GPIO_LPSPI2_SCK_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI2_SDI_2);
+			(void)imxrt_config_gpio(GPIO_LPSPI2_SDO_2);
 
 			/* Set up default configuration: Master, 8-bit, etc. */
 
