@@ -78,15 +78,15 @@ ifeq ($(CONFIG_HAVE_CXX),y)
 TINYARALIBS += $(LIBRARIES_DIR)$(DELIM)libcxx$(LIBEXT)
 endif
 
+# Add library for external support.
+
+TINYARALIBS += $(LIBRARIES_DIR)$(DELIM)libexternal$(LIBEXT)
+
 # Add library for application support.
 
 ifneq ($(APPDIR),)
 TINYARALIBS += $(LIBRARIES_DIR)$(DELIM)libapps$(LIBEXT)
 endif
-
-# Add library for external support.
-
-TINYARALIBS += $(LIBRARIES_DIR)$(DELIM)libexternal$(LIBEXT)
 
 # Add libraries for network support
 
@@ -156,6 +156,10 @@ endif
 # External WICED Lib builds
 ifeq ($(CONFIG_WL_BCM4390X),y)
 TINYARALIBS += $(LIBRARIES_DIR)$(DELIM)libbcmexternal$(LIBEXT)
+endif
+
+ifeq ($(CONFIG_RTK_WLAN),y)
+TINYARALIBS += $(LIBRARIES_DIR)$(DELIM)librtl$(LIBEXT)
 endif
 
 # Add library for external esp32 wifi support.

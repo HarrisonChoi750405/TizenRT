@@ -13,6 +13,7 @@ config ARCH_ARM
 	select ARCH_HAVE_VFORK
 	select ARCH_HAVE_STACKCHECK
 	select ARCH_HAVE_CUSTOMOPT
+	select ARCH_HAVE_NESTED_INTERRUPT
 	---help---
 		The ARM architectures
 
@@ -571,6 +572,27 @@ config ARCH_INTERRUPTSTACK
 		defined to be zero), the user task stacks will be used during interrupt
 		handling.
 
+config ARCH_HAVE_NESTED_INTERRUPT
+	bool
+	default n
+
+if ARCH_INTERRUPTSTACK > 7
+config ARCH_NESTED_INTERRUPT
+	bool "Nested interrupt support"
+	depends on ARCH_HAVE_NESTED_INTERRUPT
+	default n
+	---help---
+		Enables the nested interrupt support. If defined, higher priority interrupt
+		can pre-empt the lower priority interrupt.
+
+config ARCH_NESTED_INTERRUPT_STACKCHECK
+	bool "Nested interrupt stack check support"
+	depends on ARCH_NESTED_INTERRUPT && STACK_COLORATION
+	default n
+	---help---
+		Enables the nested interrupt stack check support. It checks every time before
+		serving the interrupt, if the stack overflows, it results in panic()
+endif
 config ARCH_HAVE_HIPRI_INTERRUPT
 	bool
 	default n

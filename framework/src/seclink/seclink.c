@@ -17,42 +17,60 @@
  ****************************************************************************/
 #include <tinyara/config.h>
 
+#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
+#ifndef LINUX
 #include <debug.h>
+#endif
 #include <sys/ioctl.h>
 #include <tinyara/seclink.h>
 
 #ifdef SECLINK_PATH
 #undef SECLINK_PATH
 #endif
-#define SECLINK_PATH "/dev/seclink"
 
-#ifdef CONFIG_SECURITY_LINK_DEBUG
-#define SL_LOG(format, ...) printf(format, ##__VA_ARGS__)
+#ifndef LINUX
+#define SECLINK_PATH "/dev/seclink"
+#define SL_LOG sedbg
 #else
-#define SL_LOG(a, ...) (void)0
+#define SECLINK_PATH "./seclink"
+#define SL_LOG printf
 #endif
 
 #define SL_TAG "[SECLINK]"
 
 #define SL_ERR(fd)														\
 	do {																\
-		SL_LOG(SL_TAG"[ERR:%s] %s %s:%d ret(%d) code(%s)\n",			\
-			   SL_TAG, __FUNCTION__, __FILE__, __LINE__, fd, strerror(errno)); \
+		SL_LOG(SL_TAG"%s:%d ret(%d) code(%s)\n",			            \
+			   __FILE__, __LINE__, fd, strerror(errno));                \
 	} while (0)
+
+#ifdef LINUX
+extern int sl_post_msg(int fd, int cmd, unsigned long arg);
 
 #define SL_CALL(hnd, code, param)										\
 	do {																\
-		int i_res = ioctl(hnd->fd, code, (unsigned long)((uintptr_t)&param)); \
-		if (i_res < 0) {													\
+		int i_res = sl_post_msg(hnd->fd, code, (unsigned long)((uintptr_t)&param)); \
+		if (i_res < 0) {												\
 			SL_ERR(i_res);												\
 			return SECLINK_ERROR;										\
 		}																\
 	} while (0)
+#else
+#define SL_CALL(hnd, code, param)										\
+	do {																\
+		int i_res = ioctl(hnd->fd, code, (unsigned long)((uintptr_t)&param)); \
+		if (i_res < 0) {												\
+			SL_ERR(i_res);												\
+			return SECLINK_ERROR;										\
+		}																\
+	} while (0)
+#endif
+
 
 #define SL_ENTER														\
 	do {																\
@@ -103,24 +121,38 @@ int sl_init(sl_ctx *hnd)
 	handle->fd = fd;
 	*hnd = handle;
 
+	struct seclink_req req = {.req_type.comm = NULL, 0};
+	SL_CALL(handle, SECLINKIOC_INIT, req);
+	if (req.res != HAL_SUCCESS) {
+		close(fd);
+		free(handle);
+		return SECLINK_ERROR;
+	}
+
 	return SECLINK_OK;
 }
 
-void sl_deinit(sl_ctx hnd)
+int sl_deinit(sl_ctx hnd)
 {
 	SL_ENTER;
 
 	if (!hnd || ((struct _seclink_s_ *)hnd)->fd <= 0) {
 		SL_ERR(((struct _seclink_s_ *)hnd)->fd);
-		return;
+		return -1;
+	}
+	struct _seclink_s_ *sl = (struct _seclink_s_ *)hnd;
+
+	struct seclink_req req = {.req_type.comm = NULL, 0};
+	SL_CALL(sl, SECLINKIOC_DEINIT, req);
+	if (req.res != HAL_SUCCESS) {
+		SL_LOG("fail to deinit");
 	}
 
-	struct _seclink_s_ *sl = (struct _seclink_s_ *)hnd;
 	SL_CLOSE(sl->fd);
 
 	free(sl);
 
-	return;
+	return 0;
 }
 
 /*  key manager */
@@ -135,8 +167,9 @@ int sl_set_key(sl_ctx hnd, hal_key_type mode, uint32_t key_idx, hal_data *key, h
 	struct seclink_req req = {.req_type.key = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_SETKEY, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_get_key(sl_ctx hnd, hal_key_type mode, uint32_t key_idx, _OUT_ hal_data *key, hal_result_e *hres)
@@ -150,8 +183,9 @@ int sl_get_key(sl_ctx hnd, hal_key_type mode, uint32_t key_idx, _OUT_ hal_data *
 	struct seclink_req req = {.req_type.key = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GETKEY, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_remove_key(sl_ctx hnd, hal_key_type mode, uint32_t key_idx, hal_result_e *hres)
@@ -165,11 +199,12 @@ int sl_remove_key(sl_ctx hnd, hal_key_type mode, uint32_t key_idx, hal_result_e 
 	struct seclink_req req = {.req_type.key = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_REMOVEKEY, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
-int gl_generate_key(sl_ctx hnd, hal_key_type mode, uint32_t key_idx, hal_result_e *hres)
+int sl_generate_key(sl_ctx hnd, hal_key_type mode, uint32_t key_idx, hal_result_e *hres)
 {
 	SL_ENTER;
 
@@ -180,8 +215,9 @@ int gl_generate_key(sl_ctx hnd, hal_key_type mode, uint32_t key_idx, hal_result_
 	struct seclink_req req = {.req_type.key = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GENERATEKEY, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 
@@ -196,8 +232,9 @@ int sl_generate_random(sl_ctx hnd, uint32_t len, _OUT_ hal_data *random, hal_res
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GENERATERANDOM, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_get_hash(sl_ctx hnd, hal_hash_type mode, hal_data *input, _OUT_ hal_data *hash, hal_result_e *hres)
@@ -211,8 +248,9 @@ int sl_get_hash(sl_ctx hnd, hal_hash_type mode, hal_data *input, _OUT_ hal_data 
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GETHASH, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_get_hmac(sl_ctx hnd, hal_hmac_type mode, hal_data *input, uint32_t key_idx, _OUT_ hal_data *hmac, hal_result_e *hres)
@@ -226,8 +264,9 @@ int sl_get_hmac(sl_ctx hnd, hal_hmac_type mode, hal_data *input, uint32_t key_id
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GETHMAC, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_rsa_sign_md(sl_ctx hnd, hal_rsa_mode mode, hal_data *hash, uint32_t key_idx, _OUT_ hal_data *sign, hal_result_e *hres)
@@ -241,8 +280,9 @@ int sl_rsa_sign_md(sl_ctx hnd, hal_rsa_mode mode, hal_data *hash, uint32_t key_i
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_RSASIGNMD, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_rsa_verify_md(sl_ctx hnd, hal_rsa_mode mode, hal_data *hash, hal_data *sign, uint32_t key_idx, hal_result_e *hres)
@@ -256,8 +296,9 @@ int sl_rsa_verify_md(sl_ctx hnd, hal_rsa_mode mode, hal_data *hash, hal_data *si
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_RSAVERIFYMD, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_ecdsa_sign_md(sl_ctx hnd, hal_ecdsa_mode mode, hal_data *hash, uint32_t key_idx, _OUT_ hal_data *sign, hal_result_e *hres)
@@ -271,8 +312,9 @@ int sl_ecdsa_sign_md(sl_ctx hnd, hal_ecdsa_mode mode, hal_data *hash, uint32_t k
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_ECDSASIGNMD, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_ecdsa_verify_md(sl_ctx hnd, hal_ecdsa_mode mode, hal_data *hash, hal_data *sign, uint32_t key_idx, hal_result_e *hres)
@@ -286,8 +328,9 @@ int sl_ecdsa_verify_md(sl_ctx hnd, hal_ecdsa_mode mode, hal_data *hash, hal_data
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_ECDSAVERIFYMD, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_dh_generate_param(sl_ctx hnd, uint32_t dh_idx, _INOUT_ hal_dh_data *dh_param, hal_result_e *hres)
@@ -301,8 +344,9 @@ int sl_dh_generate_param(sl_ctx hnd, uint32_t dh_idx, _INOUT_ hal_dh_data *dh_pa
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_DHGENERATEPARAM, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_dh_compute_shared_secret(sl_ctx hnd, hal_dh_data *dh_param, uint32_t dh_idx, _OUT_ hal_data *shared_secret, hal_result_e *hres)
@@ -316,8 +360,9 @@ int sl_dh_compute_shared_secret(sl_ctx hnd, hal_dh_data *dh_param, uint32_t dh_i
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_DHCOMPUTESHAREDSECRET, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_ecdh_compute_shared_secret(sl_ctx hnd, hal_ecdh_data *ecdh_mode, uint32_t key_idx, _OUT_ hal_data *shared_secret, hal_result_e *hres)
@@ -331,8 +376,9 @@ int sl_ecdh_compute_shared_secret(sl_ctx hnd, hal_ecdh_data *ecdh_mode, uint32_t
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_ECDHCOMPUTESHAREDSECRET, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_set_certificate(sl_ctx hnd, uint32_t cert_idx, hal_data *cert_in, hal_result_e *hres)
@@ -346,8 +392,9 @@ int sl_set_certificate(sl_ctx hnd, uint32_t cert_idx, hal_data *cert_in, hal_res
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_SETCERTIFICATE, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_get_certificate(sl_ctx hnd, uint32_t cert_idx, _OUT_ hal_data *cert_out, hal_result_e *hres)
@@ -361,8 +408,9 @@ int sl_get_certificate(sl_ctx hnd, uint32_t cert_idx, _OUT_ hal_data *cert_out, 
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GETCERTIFICATE, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_remove_certificate(sl_ctx hnd, uint32_t cert_idx, hal_result_e *hres)
@@ -376,8 +424,9 @@ int sl_remove_certificate(sl_ctx hnd, uint32_t cert_idx, hal_result_e *hres)
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_REMOVECERTIFICATE, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_get_factory_key(sl_ctx hnd, uint32_t key_idx, hal_data *key, hal_result_e *hres)
@@ -391,8 +440,9 @@ int sl_get_factory_key(sl_ctx hnd, uint32_t key_idx, hal_data *key, hal_result_e
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GETFACTORY_KEY, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_get_factory_cert(sl_ctx hnd, uint32_t cert_idx, hal_data *cert, hal_result_e *hres)
@@ -406,8 +456,9 @@ int sl_get_factory_cert(sl_ctx hnd, uint32_t cert_idx, hal_data *cert, hal_resul
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GETFACTORY_CERT, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_get_factory_data(sl_ctx hnd, uint32_t data_idx, hal_data *data, hal_result_e *hres)
@@ -421,8 +472,9 @@ int sl_get_factory_data(sl_ctx hnd, uint32_t data_idx, hal_data *data, hal_resul
 	struct seclink_req req = {.req_type.auth = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_GETFACTORY_DATA, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 /*  Crypto */
@@ -437,8 +489,9 @@ int sl_aes_encrypt(sl_ctx hnd, hal_data *dec_data, hal_aes_param *aes_param, uin
 	struct seclink_req req = {.req_type.crypto = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_AESENCRYPT, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_aes_decrypt(sl_ctx hnd, hal_data *enc_data, hal_aes_param *aes_param, uint32_t key_idx, _OUT_ hal_data *dec_data, hal_result_e *hres)
@@ -452,8 +505,9 @@ int sl_aes_decrypt(sl_ctx hnd, hal_data *enc_data, hal_aes_param *aes_param, uin
 	struct seclink_req req = {.req_type.crypto = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_AESDECRYPT, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_rsa_encrypt(sl_ctx hnd, hal_data *dec_data, hal_rsa_mode *rsa_mode, uint32_t key_idx, _OUT_ hal_data *enc_data, hal_result_e *hres)
@@ -466,9 +520,10 @@ int sl_rsa_encrypt(sl_ctx hnd, hal_data *dec_data, hal_rsa_mode *rsa_mode, uint3
 	struct seclink_crypto_info info = {key_idx, dec_data, enc_data, NULL, rsa_mode};
 	struct seclink_req req = {.req_type.crypto = &info, 0};
 
-	SL_CALL(sl, SECLINKIOC_RSADECRYPT, req);
+	SL_CALL(sl, SECLINKIOC_RSAENCRYPT, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_rsa_decrypt(sl_ctx hnd, hal_data *enc_data, hal_rsa_mode *rsa_mode, uint32_t key_idx, _OUT_ hal_data *dec_data, hal_result_e *hres)
@@ -482,8 +537,9 @@ int sl_rsa_decrypt(sl_ctx hnd, hal_data *enc_data, hal_rsa_mode *rsa_mode, uint3
 	struct seclink_req req = {.req_type.crypto = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_RSADECRYPT, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 
@@ -499,8 +555,9 @@ int sl_write_storage(sl_ctx hnd, uint32_t ss_idx, hal_data *data, hal_result_e *
 	struct seclink_req req = {.req_type.ss = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_WRITESTORAGE, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_read_storage(sl_ctx hnd, uint32_t ss_idx, _OUT_ hal_data *data, hal_result_e *hres)
@@ -514,8 +571,9 @@ int sl_read_storage(sl_ctx hnd, uint32_t ss_idx, _OUT_ hal_data *data, hal_resul
 	struct seclink_req req = {.req_type.ss = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_READSTORAGE, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }
 
 int sl_delete_storage(sl_ctx hnd, uint32_t ss_idx, hal_result_e *hres)
@@ -529,6 +587,7 @@ int sl_delete_storage(sl_ctx hnd, uint32_t ss_idx, hal_result_e *hres)
 	struct seclink_req req = {.req_type.ss = &info, 0};
 
 	SL_CALL(sl, SECLINKIOC_DELETESTORAGE, req);
+	*hres = req.res;
 
-	return req.res;
+	return SECLINK_OK;
 }

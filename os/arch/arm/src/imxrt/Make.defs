@@ -117,7 +117,8 @@ CHIP_CSRCS  = imxrt_allocateheap.c imxrt_start.c imxrt_clockconfig.c
 CHIP_CSRCS += imxrt_periphclks.c imxrt_irq.c imxrt_clrpend.c imxrt_gpio.c
 CHIP_CSRCS += imxrt_daisy.c imxrt_wdog.c imxrt_iomuxc.c imxrt_serial.c
 CHIP_CSRCS += imxrt_lowputc.c imxrt_flexspi.c imxrt_clock.c imxrt_log.c
-CHIP_CSRCS += imxrt_dmamux.c imxrt_flexram.c 
+CHIP_CSRCS += imxrt_dmamux.c imxrt_flexram.c
+CHIP_CSRCS += imxrt_mtd_flash.c imxrt_adc.c
 
 ifeq ($(CONFIG_IMXRT_SEMC),y)
 CHIP_CSRCS += imxrt_semc.c
@@ -136,8 +137,31 @@ ifneq ($(CONFIG_SCHED_TICKLESS),y)
 CHIP_CSRCS += imxrt_timerisr.c
 endif
 
+ifeq ($(CONFIG_GPIO),y)
+CHIP_CSRCS += imxrt_gpio_lowerhalf.c
+endif
+
+ifeq ($(CONFIG_PWM),y)
+CHIP_CSRCS += imxrt_pwm.c
+endif
 ifeq ($(CONFIG_IMXRT_GPIO_IRQ),y)
 CHIP_CSRCS += imxrt_gpioirq.c
+endif
+
+ifeq ($(CONFIG_IMXRT_TIMER),y)
+ifeq ($(CONFIG_IMXRT_GPT),y)
+CHIP_CSRCS += imxrt_gpt.c
+endif
+ifeq ($(CONFIG_IMXRT_PIT),y)
+CHIP_CSRCS += imxrt_gpioirq.c
+endif
+ifeq ($(CONFIG_IMXRT_QTMR),y)
+CHIP_CSRCS += imxrt_qtmr.c
+endif
+endif
+
+ifeq ($(CONFIG_TIMER),y)
+CHIP_CSRCS += imxrt_timer_lowerhalf.c
 endif
 
 ifeq ($(CONFIG_ARMV7M_MPU),y)
@@ -168,6 +192,8 @@ endif
 
 ifeq ($(CONFIG_IMXRT_ENET),y)
 CHIP_CSRCS += imxrt_enet.c
+else
+CHIP_CSRCS += imxrt_net.c
 endif
 
 ifeq ($(CONFIG_IMXRT_LPI2C),y)

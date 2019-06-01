@@ -62,6 +62,8 @@ ASRCS =
 CSRCS =
 VPATH = .
 
+CFLAGS += -I $(TOPDIR)/include
+
 ifeq ($(CONFIG_TASK_MANAGER),y)
 CFLAGS += -I $(TOPDIR)/kernel
 endif
@@ -77,6 +79,7 @@ include fota$(DELIM)Make.defs
 include gpio$(DELIM)Make.defs
 include heapinfo$(DELIM)Make.defs
 include i2c$(DELIM)Make.defs
+include iotdev$(DELIM)Make.defs
 include lwnl${DELIM}Make.defs
 include net$(DELIM)Make.defs
 include pipes$(DELIM)Make.defs

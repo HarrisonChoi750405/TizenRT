@@ -23,7 +23,6 @@ endif
 config SYSIO_UTC_SPI
 	bool "Sysio SPI TC"
 	default n
-	depends on S5J_SPI
 
 config SYSIO_UTC_I2C
 	bool "Sysio I2C TC"
@@ -35,6 +34,10 @@ config SYSIO_UTC_PWM
 
 config SYSIO_UTC_GPIO
 	bool "Sysio GPIO TC"
+	default n
+
+config SYSIO_UTC_ADC
+	bool "Sysio ADC TC"
 	default n
 
 if SYSIO_UTC_GPIO

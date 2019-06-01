@@ -169,7 +169,7 @@ bool things_handle_stop_soft_ap(wifi_manager_ap_config_s *connect_config)
 			THINGS_LOG_E(TAG, "Failed to change to STA mode)");
 			return false;
 		}
-		usleep(100000);
+		usleep(500000);
 	}
 	g_retry_connect_cnt = 0;
 	result = wifi_manager_connect_ap(connect_config);
@@ -250,18 +250,20 @@ int things_get_ap_list(access_point_info_s** p_info, int* p_count)
 	while (wifi_scan_iter != NULL) {
 		if (wifi_scan_iter->e_ssid != NULL) {
 			pinfo = (access_point_info_s*)things_malloc(sizeof(access_point_info_s));
-			pinfo->next = NULL;
-			snprintf(pinfo->e_ssid, WIFIMGR_SSID_LEN, "%s", wifi_scan_iter->e_ssid);
-			snprintf(pinfo->bss_id, WIFIMGR_MACADDR_STR_LEN, "%s", wifi_scan_iter->bss_id);
-			snprintf(pinfo->signal_level, MAX_LEVEL_SIGNAL, "%d", wifi_scan_iter->signal_level);
-			snprintf(pinfo->sec_type, MAX_TYPE_SEC, "%s", wifi_scan_iter->sec_type);
-			snprintf(pinfo->enc_type, MAX_TYPE_ENC, "%s", wifi_scan_iter->enc_type);
-			if (*p_info == NULL) {
-				*p_info = pinfo;
-			} else {
-				p_last_info->next = pinfo;
+			if (pinfo != NULL) {
+				pinfo->next = NULL;
+				snprintf(pinfo->e_ssid, WIFIMGR_SSID_LEN, "%s", wifi_scan_iter->e_ssid);
+				snprintf(pinfo->bss_id, WIFIMGR_MACADDR_STR_LEN, "%s", wifi_scan_iter->bss_id);
+				snprintf(pinfo->signal_level, MAX_LEVEL_SIGNAL, "%d", wifi_scan_iter->signal_level);
+				snprintf(pinfo->sec_type, MAX_TYPE_SEC, "%s", wifi_scan_iter->sec_type);
+				snprintf(pinfo->enc_type, MAX_TYPE_ENC, "%s", wifi_scan_iter->enc_type);
+				if (*p_info == NULL) {
+					*p_info = pinfo;
+				} else {
+					p_last_info->next = pinfo;
+				}
+				p_last_info = pinfo;
 			}
-			p_last_info = pinfo;
 		}
 		wifi_scan_iter = wifi_scan_iter->next;
 	}
@@ -301,7 +303,8 @@ static void *__attribute__((optimize("O0"))) t_things_wifi_join_loop(void *args)
 
 void things_wifi_sta_connected(wifi_manager_result_e res)
 {
-	bool is_wifi_retry_connect = false;
+	static bool is_wifi_retry_connect;
+	is_wifi_retry_connect = false;
 	if (res == WIFI_MANAGER_FAIL) {
 		THINGS_LOG_E(TAG, "Failed to connect to the AP");
 

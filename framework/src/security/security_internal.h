@@ -18,16 +18,21 @@
 
 #ifndef _SECURITY_API_INTERNAL_H__
 #define _SECURITY_API_INTERNAL_H__
-
+#include <stdio.h>
+#include <string.h>
 #include <tinyara/seclink.h>
 
+#ifdef LINUX
 #define SECAPI_LOG printf
+#else
+#define SECAPI_LOG sfdbg
+#endif
 
 #define SECAPI_TAG "[SECAPI]"
 
-#define SECAPI_ERR														\
-	do {																\
-		SECAPI_LOG("[ERR] %s\t%s:%d\n", __FUNCTION__, __FILE__, __LINE__); \
+#define SECAPI_ERR                                                   \
+	do {                                                             \
+		SECAPI_LOG(SECAPI_TAG"ERR\t%s:%d\n", __FILE__, __LINE__);    \
 	} while (0)
 
 #define SECAPI_DUMMY
@@ -53,15 +58,15 @@
 	} while (0)
 
 
-#define SECAPI_ENTER													\
-	do {																\
-		SECAPI_LOG(SECAPI_TAG "%s\t%s:%d\n", __FUNCTION__, __FILE__, __LINE__); \
+#define SECAPI_ENTER                                                 \
+	do {                                                             \
+		SECAPI_LOG(SECAPI_TAG "---> %s:%d\n", __FILE__, __LINE__);   \
 	} while (0)
 
-#define SECAPI_RETURN(res)												\
-	do {																\
-		SECAPI_LOG(SECAPI_TAG "%s\t%s:%d\n", __FUNCTION__, __FILE__, __LINE__); \
-		return res;														\
+#define SECAPI_RETURN(res)                                           \
+	do {                                                             \
+		SECAPI_LOG(SECAPI_TAG "<--- %s:%d\n", __FILE__, __LINE__);   \
+		return res;                                             \
 	} while (0)
 
 /* convert a value from seclink then return it
@@ -83,6 +88,14 @@
 		sec->length = hal.data_len;					\
 	} while (0)
 
+#define SECAPI_DATA_ALLOC_HAL(hal, sec)				\
+	do {											\
+		sec->data = (char *)malloc(hal->data_len);	\
+		if (!sec->data) {							\
+			return -2;								\
+		}											\
+	} while (0)
+
 #define SECAPI_PRIV_DCOPY(hal, sec)					\
 	do {											\
 		memcpy(sec->data, hal.priv, hal.priv_len);	\
@@ -96,12 +109,12 @@
 		hal->length = 0;						\
 	} while (0)
 
-#define SECAPI_ISHANDLE_VALID(ctx)					\
-	do {											\
-		if (!ctx) {									\
-			SECAPI_ERR;								\
-			return SECURITY_INVALID_INPUT_PARAMS;	\
-		}											\
+#define SECAPI_ISHANDLE_VALID(ctx)							\
+	do {													\
+		if (!ctx) {											\
+			SECAPI_ERR;										\
+			SECAPI_RETURN(SECURITY_INVALID_INPUT_PARAMS);	\
+		}													\
 	} while (0)
 
 #define SECAPI_CONVERT_PATH(path, idx)							\
@@ -118,6 +131,14 @@
 			if (c_res < 0) {									\
 				SECAPI_RETURN(SECURITY_INVALID_INPUT_PARAMS);	\
 			}													\
+	} while (0)
+
+#define SECAPI_CONVERT_KEYTYPE(sec, hal)					\
+	do {													\
+		hal = secutils_convert_key_s2h(sec);				\
+		if (hal == HAL_KEY_UNKNOWN) {						\
+			SECAPI_RETURN(SECURITY_INVALID_INPUT_PARAMS);	\
+		}													\
 	} while (0)
 
 #define SECAPI_CONVERT_RSAPARAM(sec, hal)						\
@@ -142,6 +163,15 @@
 		if (c_res < 0) {										\
 			SECAPI_RETURN(SECURITY_INVALID_INPUT_PARAMS);		\
 		}														\
+	} while (0)
+
+#define SECAPI_CONVERT_DHPARAM_H2S(hal, sec)					\
+	do {														\
+		int c_res = secutils_convert_dhparam_h2s(hal, sec);		\
+		if (c_res == -1) {										\
+			SECAPI_RETURN(SECURITY_INVALID_INPUT_PARAMS);		\
+		} else if (c_res == -2)									\
+			SECAPI_RETURN(SECURITY_ALLOC_ERROR);				\
 	} while (0)
 
 #define SECAPI_CONVERT_DHPARAM(sec, hal)						\
@@ -170,6 +200,12 @@
 
 struct security_ctx {
 	sl_ctx sl_hnd;
+	void *data1; // used to get data from HAL
+	unsigned int dlen1;
+	void *data2;
+	unsigned int dlen2;
+	void *data3;
+	unsigned int dlen3;
 };
 
 hal_key_type secutils_convert_key_s2h(security_key_type sec);
@@ -188,6 +224,8 @@ int secutils_convert_aesparam_s2h(security_aes_param *sparam, hal_aes_param *hpa
 int secutils_convert_rsaparam_s2h(security_rsa_param *sparam, hal_rsa_mode *hparam);
 int secutils_convert_ecdsaparam_s2h(security_ecdsa_param *eparam, hal_ecdsa_mode *hmode);
 int secutils_convert_dhparam_s2h(security_dh_param *dparam, hal_dh_data *hdata);
-int secuutils_convert_ecdhparam_s2h(security_ecdh_param *eparam, hal_ecdh_data *hdata);
-;
+int secutils_convert_ecdhparam_s2h(security_ecdh_param *eparam, hal_ecdh_data *hdata);
+
+int secutils_convert_dhparam_h2s(hal_dh_data *hdata, security_dh_param *dparam);
+
 #endif // _SECURITY_API_INTERNAL_H__

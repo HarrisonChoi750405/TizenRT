@@ -23,15 +23,37 @@
 
 #include <tinyara/config.h>
 #include <unistd.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <pthread.h>
 #include <sys/ioctl.h>
+#include <poll.h>
 #include <iotbus/iotbus_error.h>
 #include <iotbus/iotbus_uart.h>
 
+#include "iotapi_dev_handler.h"
+#include "iotbus_internal.h"
+
+#ifndef CONFIG_IOTBUS_UART_EVENT_SIZE
+#define CONFIG_IOTBUS_UART_EVENT_SIZE 3
+#endif
+
+#ifndef CONFIG_IOTBUS_UART_BUF_SIZE
+#define CONFIG_IOTBUS_UART_BUF_SIZE 64
+#endif
+
 struct _iotbus_uart_s {
 	int fd;
+	iotapi_hnd evt_hnd[CONFIG_IOTBUS_UART_EVENT_SIZE];
+	uart_write_cb callback;
+	int timeout;
+	uint8_t buf[CONFIG_IOTBUS_UART_BUF_SIZE];
+	size_t len;
+	iotbus_uart_state_e rx_state;
+	iotbus_uart_state_e tx_state;
 };
 
 struct _iotbus_uart_wrapper_s {
@@ -54,8 +76,57 @@ extern "C" {
 /*
  * Private Functions
  */
+static void *iotbus_uart_out_handler(void *hnd)
+{
+	struct _iotbus_uart_s *handle;
+	int ret;
+	ssize_t nbytes;
 
-int _iotbus_valid_baudrate(unsigned int rate)
+	struct pollfd fds[1];
+
+	handle = (struct _iotbus_uart_s *)((struct _iotbus_uart_wrapper_s *)hnd)->handle;
+
+	memset(fds, 0, sizeof(fds));
+	fds[0].fd = handle->fd;
+	fds[0].events = POLLOUT | POLLERR;
+
+	handle->tx_state = IOTBUS_UART_BUSY;
+	while (1) {
+		ret = poll(fds, 1, handle->timeout);
+		if (ret < 0) {
+			continue;
+		} else if (ret == 0) {
+			ret = IOTBUS_ERROR_TIMED_OUT;
+			break;
+		}
+
+		if (fds[0].revents & POLLOUT) {
+			nbytes = write(handle->fd, handle->buf, handle->len);
+
+			/* Handle unexpected return values */
+			if (nbytes < 0) {
+				idbg("[UART] Fail to write...\n");
+				ret = IOTBUS_ERROR_UNKNOWN;
+				break;
+			} else if (nbytes == 0) {
+				idbg("[UART] No data write, Ignoring\n");
+			} else {
+				ret = IOTBUS_ERROR_NONE;
+				break;
+			}
+		}
+	}
+	handle->tx_state = IOTBUS_UART_RDY;
+	if (handle->callback) {
+		handle->callback((struct _iotbus_uart_wrapper_s *)hnd, ret);
+	}
+	idbg("[UART] exit iotbus_uart handler\n");
+
+	return 0;
+}
+
+#ifdef CONFIG_SERIAL_TERMIOS
+static int _iotbus_valid_baudrate(unsigned int rate)
 {
 	int i = 0;
 	for (; i < g_iotbus_uart_size; i++)
@@ -64,6 +135,8 @@ int _iotbus_valid_baudrate(unsigned int rate)
 
 	return 0;
 }
+#endif
+
 /*
  * Public Functions
  */
@@ -72,6 +145,7 @@ iotbus_uart_context_h iotbus_uart_init(const char *path)
 	int fd;
 	struct _iotbus_uart_s *handle;
 	iotbus_uart_context_h dev;
+	int i;
 
 	fd = open(path, O_RDWR, 0666);
 	if (fd < 0) {
@@ -90,6 +164,10 @@ iotbus_uart_context_h iotbus_uart_init(const char *path)
 	}
 
 	handle->fd = fd;
+	for (i = 0; i < CONFIG_IOTBUS_UART_EVENT_SIZE; i++) {
+		handle->evt_hnd[i] = NULL;
+	}
+	handle->callback = NULL;
 	dev->handle = handle;
 
 	return dev;
@@ -97,6 +175,21 @@ iotbus_uart_context_h iotbus_uart_init(const char *path)
 errout_with_close:
 	close(fd);
 	return NULL;
+}
+
+iotbus_uart_context_h iotbus_uart_open(int device)
+{
+	iotbus_uart_context_h dev;
+	char dev_path[16];
+
+	if (device < 0) {
+		return NULL;
+	}
+
+	snprintf(dev_path, sizeof(dev_path), "/dev/ttyS%d", device);
+	dev = iotbus_uart_init(dev_path);
+
+	return dev;
 }
 
 int iotbus_uart_stop(iotbus_uart_context_h hnd)
@@ -312,6 +405,75 @@ int iotbus_uart_read(iotbus_uart_context_h hnd, char *buf, unsigned int length)
 	return ret;
 }
 
+int iotbus_uart_read_wait(iotbus_uart_context_h hnd, char *buf, unsigned int length, int timeout)
+{
+	struct _iotbus_uart_s *handle;
+	int ret;
+	ssize_t nbytes;
+
+	struct pollfd fds[1];
+
+	if (!hnd || !hnd->handle || timeout < 0) {
+		return IOTBUS_ERROR_INVALID_PARAMETER;
+	}
+
+	handle = (struct _iotbus_uart_s *)hnd->handle;
+
+	if (handle->rx_state == IOTBUS_UART_BUSY) {
+		return IOTBUS_ERROR_DEVICE_NOT_READY;
+	}
+
+	handle = (struct _iotbus_uart_s *)hnd->handle;
+
+	memset(fds, 0, sizeof(fds));
+	fds[0].fd = handle->fd;
+	fds[0].events = POLLIN | POLLERR;
+
+	handle->rx_state = IOTBUS_UART_BUSY;
+
+	ssize_t received = 0;
+	while (1) {
+		ret = poll(fds, 1, timeout);
+		if (ret < 0) {
+			continue;
+		} else if (ret == 0) {
+			idbg("[UART] POLL timeout[%d]\n", received);
+			if (received == 0) {
+				ret = IOTBUS_ERROR_TIMED_OUT;
+			} else {
+				ret = received;
+			}
+			break;
+		}
+
+
+		if (fds[0].revents & POLLIN) {
+			nbytes = read(handle->fd, buf + received, length);
+
+			/* Handle unexpected return values */
+			if (nbytes < 0) {
+				idbg("[UART] Fail to read...\n");
+				ret = IOTBUS_ERROR_UNKNOWN;
+				break;
+			} else if (nbytes == 0) {
+				idbg("[UART] No data read, Ignoring\n");
+			} else {
+				received += nbytes;
+				length -= nbytes;
+				if (length <= 0) {
+					idbg("[UART] RX buffer is full.\n");
+					ret = received;
+					break;
+				}
+			}
+		}
+	}
+	handle->rx_state = IOTBUS_UART_RDY;
+	idbg("[UART] exit iotbus_uart_read_wait \n");
+
+	return ret;
+}
+
 int iotbus_uart_write(iotbus_uart_context_h hnd, const char *buf, unsigned int length)
 {
 	int fd;
@@ -334,6 +496,75 @@ int iotbus_uart_write(iotbus_uart_context_h hnd, const char *buf, unsigned int l
 		return IOTBUS_ERROR_UNKNOWN;
 	}
 	return ret;
+}
+
+int iotbus_uart_async_write(iotbus_uart_context_h hnd, const char *buf, unsigned int length, uart_write_cb cb, int timeout)
+{
+	struct _iotbus_uart_s *handle;
+
+	if (!hnd || !hnd->handle || !cb) {
+		return IOTBUS_ERROR_INVALID_PARAMETER;
+	}
+
+	handle = (struct _iotbus_uart_s *)hnd->handle;
+
+	if (handle->tx_state == IOTBUS_UART_BUSY) {
+		return IOTBUS_ERROR_DEVICE_NOT_READY;
+	}
+
+	handle->callback = cb;
+	handle->timeout = timeout;
+	memcpy(handle->buf, buf, length);
+	handle->len = length;
+
+	pthread_t tid;
+	int ret;
+	ret = pthread_create(&tid, NULL, iotbus_uart_out_handler, (void *)hnd);
+	if (ret < 0) {
+		idbg("[UART] create iotapi handler fail(%d)\n", ret);
+		return IOTBUS_ERROR_UNKNOWN;
+	}
+	pthread_detach(tid);
+
+	return IOTBUS_ERROR_NONE;
+}
+
+int iotbus_uart_set_int(iotbus_uart_context_h hnd, iotbus_int_type_e int_type, bool enable, uart_isr_cb cb)
+{
+	struct _iotbus_uart_s *handle;
+	int i;
+
+	if (!hnd || !hnd->handle || !cb) {
+		return IOTBUS_ERROR_INVALID_PARAMETER;
+	}
+
+	handle = (struct _iotbus_uart_s *)hnd->handle;
+
+	if (enable) {
+		// To check already registered int_type;
+		for (i = 0; i < CONFIG_IOTBUS_UART_EVENT_SIZE; i++) {
+			if (!handle->evt_hnd[i]) {
+				iotapi_dev_init(&handle->evt_hnd[i]);
+				iotapi_dev_register(handle->evt_hnd[i], int_type, cb);
+				break;
+			}
+		}
+		if (i >= CONFIG_IOTBUS_UART_EVENT_SIZE) {
+			return IOTBUS_ERROR_QUEUE_FULL;
+		}
+	} else {
+		// Find int_type
+		for (i = 0; i < CONFIG_IOTBUS_UART_EVENT_SIZE; i++) {
+			if (!handle->evt_hnd[i]) {
+				if (iotapi_dev_get_int_type(handle->evt_hnd[i]) == int_type) {
+					iotapi_dev_unregister(handle->evt_hnd[i]);
+					handle->evt_hnd[i] = NULL;
+				}
+			}
+		}
+	}
+
+	return IOTBUS_ERROR_NONE;
 }
 
 #ifdef __cplusplus

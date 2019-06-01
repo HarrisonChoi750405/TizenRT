@@ -73,6 +73,8 @@
 #define TMP_MOUNT_DEV_DIR CONFIG_ESP32_AUTOMOUNT_USERFS_DEVNAME
 #elif defined(CONFIG_ARCH_BOARD_LM3S6965EK)
 #define TMP_MOUNT_DEV_DIR "/dev/smart0p0"
+#elif defined(CONFIG_IMXRT_AUTOMOUNT_USERFS)
+#define TMP_MOUNT_DEV_DIR CONFIG_IMXRT_AUTOMOUNT_USERFS_DEVNAME
 #else
 #define TMP_MOUNT_DEV_DIR "/dev/smart1"
 #endif
@@ -3655,6 +3657,9 @@ int tc_filesystem_main(int argc, char *argv[])
 	tc_fs_vfs_ioctl();
 #ifdef CONFIG_TC_FS_PROCFS
 	tc_fs_procfs_main();
+#endif
+#ifdef CONFIG_TC_FS_MOPS
+	tc_fs_mops_main();
 #endif
 #if defined(CONFIG_MTD_CONFIG)
 	tc_driver_mtd_config_ops();

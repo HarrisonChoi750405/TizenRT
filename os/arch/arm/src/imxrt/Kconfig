@@ -109,6 +109,7 @@ config IMXRT_LPI2C
 config IMXRT_LPSPI
 	bool
 	default n
+	select SPI
 
 config IMXRT_HIGHSPEED_GPIO
 	bool
@@ -120,6 +121,12 @@ config IMXRT_EDMA
 	bool "eDMA"
 	default n
 	select ARCH_DMA
+
+config IMXRT_ADC
+	bool "ADC"
+	default n
+	select ANALOG
+	select ADC
 
 config IMXRT_USBHOST
 	bool "USB host"
@@ -364,6 +371,32 @@ if IMXRT_I2S
 		default n
 endif # IMXRT_I2S
 
+config IMXRT_PWM
+	bool "PWM"
+	select PWM
+	default n
+
+if IMXRT_PWM
+
+	config IMXRT_PWM1
+		bool "PWM IMXRT_PWM1"
+		default n
+
+	config IMXRT_PWM2
+		bool "PWM IMXRT_PWM2"
+		default n
+	
+	if ARCH_CHIP_FAMILY_IMXRT102x
+	config IMXRT_PWM3
+		bool "PWM IMXRT_PWM3"
+		default n
+
+	config IMXRT_PWM4
+		bool "PWM IMXRT_PWM4"
+		default n
+	endif
+endif # IMXRT_PWM
+
 config IMXRT_SEMC
 	bool "Smart External Memory Controller (SEMC)"
 	default n
@@ -393,7 +426,7 @@ menuconfig IMXRT_GPIO_IRQ
 if IMXRT_GPIO_IRQ
 
 config IMXRT_GPIO1_0_15_IRQ
-	bool "GPIO1 Pins 8-15 interrupts"
+	bool "GPIO1 Pins 0-15 interrupts"
 	default n
 
 config IMXRT_GPIO1_16_31_IRQ
@@ -473,6 +506,25 @@ config IMXRT_GPIO9_16_31_IRQ
 	depends on IMXRT_HIGHSPEED_GPIO
 
 endif # IMXRT_GPIO_IRQ
+
+menuconfig IMXRT_TIMER
+	bool "H/W Timer support"
+	default n
+
+if IMXRT_TIMER
+config IMXRT_GPT
+	bool "Enable General Purpose Timer"
+	default n
+
+config IMXRT_PIT
+	bool "Enable Periodic Interrupt Timer"
+	default n
+
+config IMXRT_QTMR
+	bool "Enable Quad Timer"
+	default n
+
+endif # IMXRT_TIMER
 
 menu "Memory Configuration"
 
