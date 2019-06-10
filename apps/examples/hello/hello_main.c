@@ -57,6 +57,8 @@
 #include <tinyara/config.h>
 #include <stdio.h>
 
+#include <iotbus/iotbus_error.h>
+#include <iotbus/iotbus_spi.h>
 /****************************************************************************
  * hello_main
  ****************************************************************************/
@@ -67,6 +69,44 @@ int main(int argc, FAR char *argv[])
 int hello_main(int argc, char *argv[])
 #endif
 {
-	printf("Hello, World!!\n");
+	printf("Hello, IOTBUS SPI!!\n");
+	
+    unsigned char txbuf[64] = { 'T', 'i', 'z', 'e', 'n', 'R', 'T', 0 };
+	unsigned char rxbuf[64] = {	0, };
+
+	int ret;
+	int i;
+    int len = 8;
+
+	struct iotbus_spi_config_s config = {
+		(char)8,    // bits_per_word, MSB default.
+		0,          // chip_select
+		12000000,   // frequency in Hz
+		IOTBUS_SPI_MODE0,   // clk mode
+	};
+
+	iotbus_spi_context_h m_spi = iotbus_spi_open(3, &config);
+
+	ret = iotbus_spi_write(m_spi, txbuf, len);
+	if (ret != IOTBUS_ERROR_NONE) {
+		printf("[SPI] Write Error1[%d] !\n", ret);
+		return 0;
+	}
+    printf("[SPI] Step1 %d\n", ret);
+
+    printf("Recv[before] : 0x%x\n", rxbuf[0]);
+    ret = iotbus_spi_recv(m_spi, rxbuf, len);
+	if (ret != IOTBUS_ERROR_NONE) {
+		printf("[SPI] Recv Error1[%d] !\n", ret);
+		return 0;
+	}
+    printf("Recv[after][%d] : \n==> ", ret);
+    for (i = 0; i < len; i++) {
+        printf("0x%x ", rxbuf[i]);
+    }
+
+    iotbus_spi_close(m_spi);
+    printf("\nSPI test done.\n");
+
 	return 0;
 }

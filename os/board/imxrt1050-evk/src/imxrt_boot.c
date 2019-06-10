@@ -211,11 +211,11 @@ void imxrt_spi_initialize(void)
 {
 #ifdef CONFIG_SPI
 	struct spi_dev_s *spi;
-	spi = up_spiinitialize(1);
+	spi = up_spiinitialize(3);
 
 #ifdef CONFIG_SPI_USERIO
-	if (spi_uioregister(1, spi) < 0) {
-		lldbg("Failed to register SPI%d\n", 1);
+	if (spi_uioregister(3, spi) < 0) {
+		lldbg("Failed to register SPI%d\n", 3);
 	}
 #endif
 #endif
